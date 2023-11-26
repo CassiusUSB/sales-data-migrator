@@ -17,7 +17,7 @@ import java.time.LocalDate;
 import java.util.*;
 
 public class DataTransformer {
-    private static final Logger LOG = LoggerFactory.getLogger("DataTransformer.class");
+    private final Logger log = LoggerFactory.getLogger(DataTransformer.class);
 
     public void fillData() {
         String profile = System.getenv("profile");
@@ -29,43 +29,14 @@ public class DataTransformer {
             } else {
                 prop.load(ClassLoader.getSystemResourceAsStream("local.properties"));
 
-
-            }
-
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        final Connection dbConnection = new DatasourceLoader().getS(prop);
-
-        try {
-            if ("EC2".equals(profile)) {
-                prop.load(ClassLoader.getSystemResourceAsStream("EC2.properties"));
-            } else {
-                prop.load(ClassLoader.getSystemResourceAsStream("local.properties"));
+                final Connection dbConnection = new DatasourceLoader().getS(prop);
 
                 List<String> customerIds = fillCustomers(dbConnection);
-
-
-                List<String> line = Files.readAllLines(Path.of(ClassLoader.getSystemResource("carvana_car_sold-2022-08.csv").getPath()));
-                Map<String, Set<String>> makesModels = new HashMap<>();
-
-                for (int i = 1 /*skip header row*/; i < line.size(); i++) {
-                    String[] tokens = line.get(i).replaceAll("\"", "").split(",");
-                    Vehicle vehicle = new Vehicle(tokens[0], Integer.parseInt(tokens[2]), tokens[3], tokens[4], tokens[6], Integer.parseInt(tokens[5]));
-
-                    makesModels.putIfAbsent(vehicle.make(), new HashSet<>());
-                    makesModels.get(vehicle.make()).add(vehicle.model());
-
-                    Transaction transaction = new Transaction(UUID.randomUUID(), Integer.parseInt(tokens[7]), LocalDate.parse(tokens[12]),
-                            tokens[0], customerIds.get(new Random().nextInt(customerIds.size())));
-
-
-                }
+                fillTransactions(dbConnection, customerIds);
             }
+
         } catch (Exception e) {
-            LOG.error(e.toString());
+            log.error(e.toString());
         }
     }
 
@@ -74,40 +45,126 @@ public class DataTransformer {
         try {
             List<String> fLines = Files.readAllLines(Path.of(ClassLoader.getSystemResource("firstnames.txt").getPath()));
             List<String> lLines = Files.readAllLines(Path.of(ClassLoader.getSystemResource("lastnames.txt").getPath()));
-
-            for (int i = 0; i < 30000; i++) {
-                int randomFist = new Random().nextInt(fLines.size());
-                int randomLast = new Random().nextInt(lLines.size());
-
-                String firstName = fLines.get(randomFist);
-                String lastName = lLines.get(randomLast);
-                Customer customer = new Customer(Integer.toString(new Random().nextInt(100000000, 999999999)), firstName, lastName,
-                        null, String.format("%s%s@mymail.com", subFour(firstName), subFour(lastName)));
+            int batchCount = 1;
+            int i = 0;
+            while (i < 300) {
 
 
-                String sql = "insert into customer values (?,?,?,?,?)";
+                String sqlStart = "insert into customer values (?,?,?,?,?);";
+                try (PreparedStatement statement = dbConnection.prepareStatement(sqlStart)) {
 
-                try (PreparedStatement statement = dbConnection.prepareStatement(sql)) {
+                    while (batchCount <= 25) {
 
-                    statement.setString(1, customer.customerId());
-                    statement.setString(2, customer.firstName());
-                    statement.setString(3, customer.lastName());
-                    statement.setString(4, customer.phoneNumber());
-                    statement.setString(5, customer.emailAddress());
-                    statement.executeUpdate();
+                        int randomFist = new Random().nextInt(fLines.size());
+                        int randomLast = new Random().nextInt(lLines.size());
 
-                    customerIds.add(customer.customerId());
-                    if (i % 1000 == 0) {
-                        LOG.info("Uploaded {} rows", i);
+                        String firstName = fLines.get(randomFist);
+                        String lastName = lLines.get(randomLast);
+                        Customer customer = new Customer(Integer.toString(new Random().nextInt(100000000, 999999999)), firstName, lastName,
+                                null, String.format("%s%s@mymail.com", subFour(firstName), subFour(lastName)));
+                        statement.setString(1, customer.customerId());
+                        statement.setString(2, customer.firstName());
+                        statement.setString(3, customer.lastName());
+                        statement.setString(4, customer.phoneNumber());
+                        statement.setString(5, customer.emailAddress());
+                        statement.addBatch();
+
+                        customerIds.add(customer.customerId());
+                        batchCount++;
                     }
+
+                    statement.executeBatch();
+                    log.info("Uploaded {} rows", customerIds.size());
+                    i += batchCount;
+                    batchCount = 1;
                 } catch (SQLException ex) {
-                    System.out.println(ex.getMessage());
+                    log.error(ex.toString());
+                    throw new RuntimeException(ex);
                 }
+                i++;
             }
         } catch (IOException ex) {
             throw new RuntimeException(ex);
         }
         return customerIds;
+    }
+
+    private void fillTransactions(Connection dbConnection, List<String> customerIds) throws IOException {
+        List<String> entries = Files.readAllLines(Path.of(ClassLoader.getSystemResource("carvana_car_sold-2022-08.csv").getPath()));
+        Map<String, Set<String>> makesModels = new HashMap<>();
+
+        int batchCount = 1;
+        int i = 1 /*skip header row*/;
+        while (i < 10000) {
+            String vehicleInsert = "insert into vehicle values (?,?,?,?,?,?);";
+            String transactionInsert = "insert into transaction values (?,?,?,?,?);";
+
+            try (PreparedStatement transactionStatement = dbConnection.prepareStatement(transactionInsert);
+                 PreparedStatement vehicleStatement = dbConnection.prepareStatement(vehicleInsert)) {
+
+                while (batchCount <= 250) {
+                    String[] entryValues = entries.get(i).replaceAll("\"", "").split(",");
+                    Vehicle vehicle = new Vehicle(entryValues[0], Integer.parseInt(entryValues[2]), entryValues[3], entryValues[4], entryValues[6], Integer.parseInt(entryValues[5]));
+
+                    vehicleStatement.setString(1, vehicle.vehicleId());
+                    vehicleStatement.setInt(2, vehicle.year());
+                    vehicleStatement.setString(3, vehicle.make());
+                    vehicleStatement.setString(4, vehicle.model());
+                    vehicleStatement.setInt(5, vehicle.miles());
+                    vehicleStatement.setString(6, vehicle.trim());
+                    vehicleStatement.addBatch();
+
+                    Set<String> models = makesModels.get(vehicle.make());
+                    if (models == null) {
+
+                        String makeInsert = "insert into vehicle_make values (?);";
+
+                        try (PreparedStatement makeStatement = dbConnection.prepareStatement(makeInsert)) {
+                            makeStatement.setString(1, vehicle.make());
+                            makeStatement.executeUpdate();
+
+                            makesModels.put(vehicle.make(), new HashSet<>());
+                            models = makesModels.get(vehicle.make());
+                        }
+
+                    }
+                    if (!models.contains(vehicle.model())) {
+                        String modelInsert = "insert into vehicle_model values (?,?);";
+
+                        try (PreparedStatement modelStatement = dbConnection.prepareStatement(modelInsert)) {
+                            modelStatement.setString(1, vehicle.make());
+                            modelStatement.setString(2, vehicle.model());
+                            modelStatement.executeUpdate();
+
+                            models.add(vehicle.model());
+                        }
+
+                    }
+
+                    Transaction transaction = new Transaction(UUID.randomUUID(), Integer.parseInt(entryValues[7]), LocalDate.parse(entryValues[12]),
+                            entryValues[0], customerIds.get(new Random().nextInt(customerIds.size())));
+
+                    transactionStatement.setObject(1, transaction.transactionId());
+                    transactionStatement.setInt(2, transaction.soldPrice());
+                    transactionStatement.setObject(3, transaction.soldDate());
+                    transactionStatement.setString(4, transaction.vehicleId());
+                    transactionStatement.setString(5, transaction.customerId());
+                    transactionStatement.addBatch();
+
+                    batchCount++;
+                    i++;
+                }
+
+                vehicleStatement.executeBatch();
+                transactionStatement.executeBatch();
+                log.info("Uploaded {} vehicles", i);
+                batchCount = 1;
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+
+            i++;
+        }
     }
 
     private String subFour(String s) {

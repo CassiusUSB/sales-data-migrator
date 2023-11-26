@@ -21,7 +21,7 @@ create table if not exists vehicle
     trim       VARCHAR(50),
     primary key (vehicle_id),
     foreign key (make) references vehicle_make,
-    foreign key (model, model) references vehicle_model
+    foreign key (make, model) references vehicle_model
 );
 
 create table if not exists customer
