@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -80,7 +79,11 @@ public class DataTransformer {
 
                         String firstName = fLines.get(randomFist);
                         String lastName = lLines.get(randomLast);
-                        Customer customer = new Customer(Long.toString(new Random().nextLong(1000000000L, 9999999999L)), firstName, lastName,
+                        String nineDigitId = Integer.toString(new Random().nextInt(1000000000, 999999999));
+                        while (customerIds.contains(nineDigitId)){
+                            nineDigitId =Integer.toString( new Random().nextInt(100000000, 999999999));
+                        }
+                        Customer customer = new Customer(nineDigitId, firstName, lastName,
                                 null, String.format("%s%s@mymail.com", subFour(firstName), subFour(lastName)));
                         statement.setString(1, customer.customerId());
                         statement.setString(2, customer.firstName());
@@ -89,7 +92,7 @@ public class DataTransformer {
                         statement.setString(5, customer.emailAddress());
                         statement.addBatch();
 
-                        customerIds.add(customer.customerId());
+                        customerIds.add(nineDigitId);
                         batchCount++;
                     }
 
@@ -99,9 +102,8 @@ public class DataTransformer {
                     batchCount = 1;
                 } catch (SQLException ex) {
                     log.error(ex.toString());
-                    throw new RuntimeException(ex);
+                    throw new SqlConnectionException(ex);
                 }
-                i++;
             }
         } catch (IOException | URISyntaxException ex) {
             throw new DataFileNotFoundException(ex);
@@ -124,7 +126,7 @@ public class DataTransformer {
                 try (PreparedStatement transactionStatement = dbConnection.prepareStatement(transactionInsert);
                      PreparedStatement vehicleStatement = dbConnection.prepareStatement(vehicleInsert)) {
 
-                    while (batchCount <= maxBatchSize) {
+                    while (batchCount <= maxBatchSize && i < entries.size()) {
                         String[] entryValues = entries.get(i).replaceAll("\"", "").split(",");
                         Vehicle vehicle = new Vehicle(entryValues[0], Integer.parseInt(entryValues[2]), entryValues[3], entryValues[4], entryValues[6], Integer.parseInt(entryValues[5]));
                         if (!vehicleIds.contains(vehicle.vehicleId())) {
@@ -180,7 +182,7 @@ public class DataTransformer {
 
                     vehicleStatement.executeBatch();
                     transactionStatement.executeBatch();
-                    log.info("Uploaded {} sales transactions", i);
+                    log.info("Uploaded {} sales transactions", i - 1);
                     batchCount = 1;
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
