@@ -44,6 +44,7 @@ public class DatasourceLoader {
             dbProps.setProperty("user", user);
             dbProps.setProperty("password", password);
             dbProps.setProperty("ssl", "false");
+            dbProps.setProperty("auto-commit", "false");
 
             Connection connection = DriverManager.getConnection(url, dbProps);
             String inspectDb = """
@@ -56,7 +57,7 @@ public class DatasourceLoader {
             if (!resultSet.next()) {
                 throw new SqlConnectionException("There are no tables in the database");
             }
-
+            connection.setAutoCommit(false);
             return connection;
         } catch (SQLException e) {
             LOG.error("Failed to connect to db. {}", e.toString());
