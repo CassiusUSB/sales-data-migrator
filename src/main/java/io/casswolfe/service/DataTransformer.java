@@ -1,5 +1,7 @@
 package io.casswolfe.service;
 
+import io.casswolfe.exception.DataFileNotFoundException;
+import io.casswolfe.exception.PropertiesFileNotFoundException;
 import io.casswolfe.persistenceconfig.DatasourceLoader;
 import io.casswolfe.struct.Customer;
 import io.casswolfe.struct.Transaction;
@@ -18,42 +20,47 @@ import java.util.*;
 
 public class DataTransformer {
     private final Logger log = LoggerFactory.getLogger(DataTransformer.class);
+    private final int maxBatchSize;
+    private final int generateCustomerAmount;
 
-    public void fillData() {
+    public DataTransformer() {
         String profile = System.getenv("profile");
         Properties prop = new Properties();
-
         try {
             if ("EC2".equals(profile)) {
                 prop.load(ClassLoader.getSystemResourceAsStream("EC2.properties"));
             } else {
                 prop.load(ClassLoader.getSystemResourceAsStream("local.properties"));
-
-                final Connection dbConnection = new DatasourceLoader().getS(prop);
-
-                List<String> customerIds = fillCustomers(dbConnection);
-                fillTransactions(dbConnection, customerIds);
             }
-
-        } catch (Exception e) {
-            log.error(e.toString());
+        } catch (IOException e) {
+            throw new PropertiesFileNotFoundException(e);
         }
+
+        this.maxBatchSize = Integer.parseInt(prop.getProperty("app.max-batch-size"));
+        this.generateCustomerAmount = Integer.parseInt(prop.getProperty("app.generate-customer-amount"));
     }
 
-    private List<String> fillCustomers(Connection dbConnection) {
+    public void fillData() {
+
+        final Connection dbConnection = new DatasourceLoader().getConnection();
+
+        List<String> customerIds = fillCustomerTable(dbConnection);
+        fillVehicleAndTransactionTable(dbConnection, customerIds);
+    }
+
+    private List<String> fillCustomerTable(Connection dbConnection) {
         List<String> customerIds = new ArrayList<>();
         try {
             List<String> fLines = Files.readAllLines(Path.of(ClassLoader.getSystemResource("firstnames.txt").getPath()));
             List<String> lLines = Files.readAllLines(Path.of(ClassLoader.getSystemResource("lastnames.txt").getPath()));
             int batchCount = 1;
             int i = 0;
-            while (i < 300) {
-
+            while (i < generateCustomerAmount) {
 
                 String sqlStart = "insert into customer values (?,?,?,?,?);";
                 try (PreparedStatement statement = dbConnection.prepareStatement(sqlStart)) {
 
-                    while (batchCount <= 25) {
+                    while (batchCount <= maxBatchSize) {
 
                         int randomFist = new Random().nextInt(fLines.size());
                         int randomLast = new Random().nextInt(lLines.size());
@@ -84,86 +91,89 @@ public class DataTransformer {
                 i++;
             }
         } catch (IOException ex) {
-            throw new RuntimeException(ex);
+            throw new DataFileNotFoundException(ex);
         }
         return customerIds;
     }
 
-    private void fillTransactions(Connection dbConnection, List<String> customerIds) throws IOException {
-        List<String> entries = Files.readAllLines(Path.of(ClassLoader.getSystemResource("carvana_car_sold-2022-08.csv").getPath()));
-        Map<String, Set<String>> makesModels = new HashMap<>();
+    private void fillVehicleAndTransactionTable(Connection dbConnection, List<String> customerIds) {
+        try {
+            List<String> entries = Files.readAllLines(Path.of(ClassLoader.getSystemResource("carvana_car_sold-2022-08.csv").getPath()));
+            Map<String, Set<String>> makesModels = new HashMap<>();
 
-        int batchCount = 1;
-        int i = 1 /*skip header row*/;
-        while (i < 10000) {
-            String vehicleInsert = "insert into vehicle values (?,?,?,?,?,?);";
-            String transactionInsert = "insert into transaction values (?,?,?,?,?);";
+            int batchCount = 1;
+            int i = 1 /*skip header row*/;
+            while (i < entries.size()) {
+                String vehicleInsert = "insert into vehicle values (?,?,?,?,?,?);";
+                String transactionInsert = "insert into transaction values (?,?,?,?,?);";
 
-            try (PreparedStatement transactionStatement = dbConnection.prepareStatement(transactionInsert);
-                 PreparedStatement vehicleStatement = dbConnection.prepareStatement(vehicleInsert)) {
+                try (PreparedStatement transactionStatement = dbConnection.prepareStatement(transactionInsert);
+                     PreparedStatement vehicleStatement = dbConnection.prepareStatement(vehicleInsert)) {
 
-                while (batchCount <= 250) {
-                    String[] entryValues = entries.get(i).replaceAll("\"", "").split(",");
-                    Vehicle vehicle = new Vehicle(entryValues[0], Integer.parseInt(entryValues[2]), entryValues[3], entryValues[4], entryValues[6], Integer.parseInt(entryValues[5]));
+                    while (batchCount <= maxBatchSize) {
+                        String[] entryValues = entries.get(i).replaceAll("\"", "").split(",");
+                        Vehicle vehicle = new Vehicle(entryValues[0], Integer.parseInt(entryValues[2]), entryValues[3], entryValues[4], entryValues[6], Integer.parseInt(entryValues[5]));
 
-                    vehicleStatement.setString(1, vehicle.vehicleId());
-                    vehicleStatement.setInt(2, vehicle.year());
-                    vehicleStatement.setString(3, vehicle.make());
-                    vehicleStatement.setString(4, vehicle.model());
-                    vehicleStatement.setInt(5, vehicle.miles());
-                    vehicleStatement.setString(6, vehicle.trim());
-                    vehicleStatement.addBatch();
+                        vehicleStatement.setString(1, vehicle.vehicleId());
+                        vehicleStatement.setInt(2, vehicle.year());
+                        vehicleStatement.setString(3, vehicle.make());
+                        vehicleStatement.setString(4, vehicle.model());
+                        vehicleStatement.setInt(5, vehicle.miles());
+                        vehicleStatement.setString(6, vehicle.trim());
+                        vehicleStatement.addBatch();
 
-                    Set<String> models = makesModels.get(vehicle.make());
-                    if (models == null) {
+                        Set<String> models = makesModels.get(vehicle.make());
+                        if (models == null) {
 
-                        String makeInsert = "insert into vehicle_make values (?);";
+                            String makeInsert = "insert into vehicle_make values (?);";
 
-                        try (PreparedStatement makeStatement = dbConnection.prepareStatement(makeInsert)) {
-                            makeStatement.setString(1, vehicle.make());
-                            makeStatement.executeUpdate();
+                            try (PreparedStatement makeStatement = dbConnection.prepareStatement(makeInsert)) {
+                                makeStatement.setString(1, vehicle.make());
+                                makeStatement.executeUpdate();
 
-                            makesModels.put(vehicle.make(), new HashSet<>());
-                            models = makesModels.get(vehicle.make());
+                                makesModels.put(vehicle.make(), new HashSet<>());
+                                models = makesModels.get(vehicle.make());
+                            }
                         }
 
-                    }
-                    if (!models.contains(vehicle.model())) {
-                        String modelInsert = "insert into vehicle_model values (?,?);";
+                        if (!models.contains(vehicle.model())) {
+                            String modelInsert = "insert into vehicle_model values (?,?);";
 
-                        try (PreparedStatement modelStatement = dbConnection.prepareStatement(modelInsert)) {
-                            modelStatement.setString(1, vehicle.make());
-                            modelStatement.setString(2, vehicle.model());
-                            modelStatement.executeUpdate();
+                            try (PreparedStatement modelStatement = dbConnection.prepareStatement(modelInsert)) {
+                                modelStatement.setString(1, vehicle.make());
+                                modelStatement.setString(2, vehicle.model());
+                                modelStatement.executeUpdate();
 
-                            models.add(vehicle.model());
+                                models.add(vehicle.model());
+                            }
                         }
 
+                        Transaction transaction = new Transaction(UUID.randomUUID(), Integer.parseInt(entryValues[7]), LocalDate.parse(entryValues[12]),
+                                entryValues[0], customerIds.get(new Random().nextInt(customerIds.size())));
+
+                        transactionStatement.setObject(1, transaction.transactionId());
+                        transactionStatement.setInt(2, transaction.soldPrice());
+                        transactionStatement.setObject(3, transaction.soldDate());
+                        transactionStatement.setString(4, transaction.vehicleId());
+                        transactionStatement.setString(5, transaction.customerId());
+                        transactionStatement.addBatch();
+
+                        batchCount++;
+                        i++;
                     }
 
-                    Transaction transaction = new Transaction(UUID.randomUUID(), Integer.parseInt(entryValues[7]), LocalDate.parse(entryValues[12]),
-                            entryValues[0], customerIds.get(new Random().nextInt(customerIds.size())));
-
-                    transactionStatement.setObject(1, transaction.transactionId());
-                    transactionStatement.setInt(2, transaction.soldPrice());
-                    transactionStatement.setObject(3, transaction.soldDate());
-                    transactionStatement.setString(4, transaction.vehicleId());
-                    transactionStatement.setString(5, transaction.customerId());
-                    transactionStatement.addBatch();
-
-                    batchCount++;
-                    i++;
+                    vehicleStatement.executeBatch();
+                    transactionStatement.executeBatch();
+                    log.info("Uploaded {} vehicles", i);
+                    batchCount = 1;
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
                 }
 
-                vehicleStatement.executeBatch();
-                transactionStatement.executeBatch();
-                log.info("Uploaded {} vehicles", i);
-                batchCount = 1;
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
+                i++;
             }
-
-            i++;
+        } catch (IOException e) {
+            throw new DataFileNotFoundException(e);
         }
     }
 
