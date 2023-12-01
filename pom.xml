@@ -38,6 +38,11 @@
             <artifactId>log4j-slf4j-impl</artifactId>
             <version>2.12.4</version>
         </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <version>1.12.573</version>
+        </dependency>
 
     </dependencies>
 
