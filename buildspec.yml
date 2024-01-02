@@ -13,8 +13,8 @@ phases:
       --build-arg APP_DB-URL=${POSTGRES_URL} 
       --build-arg APP_DB-USER=${APP_DB-USER} 
       --build-arg APP_DB-PASSWORD=${POSTGRES_PASS} 
-      --build-arg APP_S3-BUCKET=${APP_S3-BUCKET} 
-      --build-arg APP_S3-KEY=${APP_S3-KEY} 
+      --build-arg APP_S3-BUCKET=${APP_S3_BUCKET} 
+      --build-arg APP_S3-KEY=${APP_S3_KEY} 
       --build-arg AWS_ACCESS_KEY_ID=${ACCESS_ID} 
       --build-arg AWS_SECRET_ACCESS_KEY=${ACCESS_KEY} 
       $IMAGE_REPO_NAME:$IMAGE_TAG .'
