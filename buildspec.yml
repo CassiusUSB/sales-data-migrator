@@ -10,11 +10,11 @@ phases:
       - echo Build started on `date`
       - echo Building the Docker image...
       - 'docker build 
-      --build-arg APP_DB-URL=${POSTGRES_URL} 
-      --build-arg APP_DB-USER=${POSTGRES_USER} 
-      --build-arg APP_DB-PASSWORD=${POSTGRES_PASS} 
-      --build-arg APP_S3-BUCKET=${APP_S3_BUCKET} 
-      --build-arg APP_S3-KEY=${APP_S3_KEY} 
+      --build-arg APP_DB_URL=${POSTGRES_URL} 
+      --build-arg APP_DB_USER=${POSTGRES_USER} 
+      --build-arg APP_DB_PASSWORD=${POSTGRES_PASS} 
+      --build-arg APP_S3_BUCKET=${APP_S3_BUCKET} 
+      --build-arg APP_S3_KEY=${APP_S3_KEY} 
       --build-arg AWS_ACCESS_KEY_ID=${ACCESS_ID} 
       --build-arg AWS_SECRET_ACCESS_KEY=${ACCESS_KEY} 
        -t $IMAGE_REPO_NAME:$IMAGE_TAG .'

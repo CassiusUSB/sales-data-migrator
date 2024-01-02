@@ -18,9 +18,11 @@ public class DatasourceLoader {
     private final String password;
 
     public DatasourceLoader() {
+        LOG.info("Loading datasource..");
         this.url = Configuration.getenv("app.db-url");
         this.user = Configuration.getenv("app.db-user");
         this.password = Configuration.getenv("app.db-password");
+        LOG.info("Loaded datasource.");
     }
 
     public Connection getConnection() {
