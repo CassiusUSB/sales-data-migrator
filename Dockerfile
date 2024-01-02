@@ -1,11 +1,11 @@
 # Build Stage
-FROM maven:3.8-openjdk-17-slim AS build
+FROM public.ecr.aws/docker/library/maven:3.8-openjdk-17-slim AS build
 COPY src /home/app/src
 COPY pom.xml /home/app
 RUN mvn -f /home/app/pom.xml clean package -DskipTests
 
 # Execution Stage
-FROM amazoncorretto:17.0.7-alpine
+FROM public.ecr.aws/amazoncorretto/amazoncorretto:17.0.7
 
 # Add app user
 ARG APPLICATION_NAME=SalesDataMigrator

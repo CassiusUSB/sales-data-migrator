@@ -1,6 +1,7 @@
 package io.casswolfe;
 
 import io.casswolfe.exception.PropertiesFileNotFoundException;
+import org.apache.commons.codec.binary.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

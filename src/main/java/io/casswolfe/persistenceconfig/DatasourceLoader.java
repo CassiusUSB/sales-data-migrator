@@ -22,10 +22,10 @@ public class DatasourceLoader {
         this.url = Configuration.getenv("app.db-url");
         this.user = Configuration.getenv("app.db-user");
         this.password = Configuration.getenv("app.db-password");
-        LOG.info("Loaded datasource.");
     }
 
     public Connection getConnection() {
+        LOG.info("Connecting to datasource {}", this.url);
 
         try {
             Properties dbProps = new Properties();
