@@ -35,8 +35,7 @@ public class S3Service {
     public List<String> getSales() {
         try {
             S3ObjectInputStream objectContent = s3.getObject(new GetObjectRequest(s3Bucket, s3Key)).getObjectContent();
-            String content = null;
-            content = new String(objectContent.readAllBytes());
+            String content = new String(objectContent.readAllBytes());
             return Arrays.asList(content.split("\n"));
         } catch (IOException e) {
             throw new RuntimeException(e);

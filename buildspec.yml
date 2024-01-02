@@ -9,7 +9,15 @@ phases:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
-      - docker build -t $IMAGE_REPO_NAME:$IMAGE_TAG .
+      - 'docker build -t --build-arg APP_DB-URL=${APP_DB-URL} 
+      --build-arg APP_DB-URL=${POSTGRES_URL} 
+      --build-arg APP_DB-USER=${APP_DB-USER} 
+      --build-arg APP_DB-PASSWORD=${POSTGRES_PASS} 
+      --build-arg APP_S3-BUCKET=${APP_S3-BUCKET} 
+      --build-arg APP_S3-KEY=${APP_S3-KEY} 
+      --build-arg AWS_ACCESS_KEY_ID=${ACCESS_ID} 
+      --build-arg AWS_SECRET_ACCESS_KEY=${ACCESS_KEY} 
+      $IMAGE_REPO_NAME:$IMAGE_TAG .'
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
   post_build:
     commands:

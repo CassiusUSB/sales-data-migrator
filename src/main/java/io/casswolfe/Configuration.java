@@ -3,6 +3,7 @@ package io.casswolfe;
 import io.casswolfe.exception.PropertiesFileNotFoundException;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Properties;
 
 public class Configuration {
@@ -14,9 +15,9 @@ public class Configuration {
         String profile = System.getenv("profile");
         try {
             if ("EC2".equals(profile)) {
-                prop.load(ClassLoader.getSystemResourceAsStream("EC2.properties"));
+                prop.load(ClassLoader.getSystemResourceAsStream("run-EC2.properties"));
             } else {
-                prop.load(ClassLoader.getSystemResourceAsStream("local.properties"));
+                prop.load(ClassLoader.getSystemResourceAsStream("run-local.properties"));
             }
         } catch (IOException e) {
             throw new PropertiesFileNotFoundException(e);

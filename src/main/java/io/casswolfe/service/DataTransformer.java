@@ -1,7 +1,5 @@
 package io.casswolfe.service;
 
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import io.casswolfe.Configuration;
 import io.casswolfe.cloud.S3Service;
 import io.casswolfe.exception.DataFileNotFoundException;
@@ -14,9 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -54,8 +49,8 @@ public class DataTransformer {
     private List<String> fillCustomerTable(Connection dbConnection) {
         List<String> customerIds = new ArrayList<>();
         try {
-            List<String> fLines = Files.readAllLines(Path.of(ClassLoader.getSystemResource("firstnames.txt").toURI()));
-            List<String> lLines = Files.readAllLines(Path.of(ClassLoader.getSystemResource("lastnames.txt").toURI()));
+            List<String> fLines = Arrays.asList(new String(ClassLoader.getSystemResourceAsStream("firstnames.txt").readAllBytes()).split("\n"));
+            List<String> lLines = Arrays.asList(new String(ClassLoader.getSystemResourceAsStream("lastnames.txt").readAllBytes()).split("\n"));
             int batchCount = 1;
             int i = 0;
             while (i < generateCustomerAmount) {
@@ -70,7 +65,7 @@ public class DataTransformer {
 
                         String firstName = fLines.get(randomFist);
                         String lastName = lLines.get(randomLast);
-                        String nineDigitId = Integer.toString(new Random().nextInt(1000000000, 999999999));
+                        String nineDigitId = Integer.toString(new Random().nextInt(100000000, 999999999));
                         while (customerIds.contains(nineDigitId)) {
                             nineDigitId = Integer.toString(new Random().nextInt(100000000, 999999999));
                         }
@@ -96,7 +91,7 @@ public class DataTransformer {
                     throw new SqlConnectionException(ex);
                 }
             }
-        } catch (IOException | URISyntaxException ex) {
+        } catch (IOException ex) {
             throw new DataFileNotFoundException(ex);
         }
         return customerIds;
@@ -187,5 +182,4 @@ public class DataTransformer {
         }
         return s;
     }
-
 }
