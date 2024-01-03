@@ -1,6 +1,6 @@
 # Sales Data Migrator
 
-![Architecture of service and its place in AWS](Vehicle-Datafill.png)
+![Architecture of service and its place in AWS](Vehicle-Datafill.svg)
 
 This project is designed to build, containerize, and run locally or in aws. 
 Its primary inputs are three files that are under the resources directory: firstnames.txt, lastnames.txt, *either* the truncated carvana_car_sold.csv in the resources directory *or* the full csv of 46,000 records held in AWS S3.
