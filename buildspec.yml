@@ -9,7 +9,6 @@ phases:
     commands:
       - echo Build started on `date`
       - echo Building the Docker image...
-      - echo ${POSTGRES_URL}
       - "docker build 
       --build-arg APP_DB_URL=${POSTGRES_URL} 
       --build-arg APP_DB_USER=${POSTGRES_USER} 
