@@ -19,7 +19,6 @@ This project leverages docker-compose and localstack to set up a local environme
 The code's resources folders contains a truncated csv of the sales data but this is not what is read by the application. This file should be injected into the S3 localstack container.
 
 
-
 >[!Note]
 >Thanks to US Census Bureau and Carnegie Mellon University for first and last name raw data pool.
 > Carvana Car Sales for publicly providing vehicle sales through the AWS Marketplace
